@@ -1,3 +1,5 @@
 Chippy.class
-.idea/
+.idea
 Chippy.iml
+out
+tests
