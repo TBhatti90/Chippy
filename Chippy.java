@@ -1,7 +1,7 @@
 import java.io.FileInputStream;
-import java.io.DataInputStream;
-import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import javax.swing.*;
 
 public class Chippy {
 	private static char delayTimer(char delay) {
@@ -16,6 +16,12 @@ public class Chippy {
 		}
 		// Buzz sound implement
 		return --sound;
+	}
+	public static void graphics(boolean[][] display) {
+		JFrame frame = new JFrame();
+		frame.setSize(display.length*7,display[0].length*7);
+		frame.setLayout(null);
+		frame.setVisible(true);
 	}
 	private static void font(char[] mem) {
 		//0
@@ -126,48 +132,132 @@ public class Chippy {
 			return;
 		}
 		FileInputStream fileIn = new FileInputStream(args[0]);
-		DataInputStream in = new DataInputStream(fileIn);
+		//FileOutputStream fileOut = new FileOutputStream("mem.ch8");
 
 		// RAM
 		char[] mem = new char[4096];
 		// Registers
 		char[] V = new char[16];
 		// Stores addresses, only lowest 12 bits are used
-		char I = 0x0;
+		char I = 0;
 		// Delay Register
 		char delay = 0;
 		// Sound Register
 		char sound = 0;
-		// Program Counter, stores currently executing address
-		char PC = 0x0;
-		// Stack pointer, points to top of stack
-		char SP = 0x0;
 		// Stack
 		char[] stack = new char[16];
+		// Program Counter, stores currently executing address
+		char PC = 0;
+		// Stack pointer, points to top of stack
+		char SP = 0;
 		// Display
 		boolean[][] display = new boolean[64][32];
 		// Instruction
-		char instruction = 0x0;
+		char instruction = 0;
+		//Keypad
+		char[] keypad = new char[16];
 
 		//Initialization process
-
 		//Initialize font into memory
 		font(mem);
+		//Initialize graphics
+		graphics(display);
 		//Placing game into memory
 		int ch;
-		while ((ch = in.read()) != -1) {
-			System.out.printf("%2X%2X\n", ch, ch = in.read());
+		int i = 0x200;
+		while ((ch = fileIn.read()) != -1) {
+			mem[i++] = (char)ch;
 		}
-
-
-
-
-
-
-
-
-
-		in.close();
 		fileIn.close();
+		//Setting PC to proper memory location
+		PC = 0x200;
+		//Setting SP to proper stack location
+		SP = stack[15];
+
+		//Memory dump
+		//for (int j = 0; j < mem.length; ++j) {
+			//fileOut.write(mem[j]);
+		//}
+		//fileOut.close();
+
+		//Main loop
+		while (true) {
+			//Fetch
+			char byte1 = mem[PC];
+			char byte2 = mem[PC+1];
+			byte1 = (char) (byte1 << 8);
+			instruction = (char)(byte1 | byte2);
+			PC = (char)(PC+2);
+			//Decode
+			//Extract bytes from instruction.
+			char nibble = (char)((instruction&0xF000)>>>12);
+			char X = (char)((instruction&0x0F00)>>>8);
+			char Y = (char)((instruction&0x00F0)>>>4);
+			char N = (char)(instruction&0x000F);
+			char NN = (char)(instruction&0x00FF);
+			char NNN = (char)(instruction&0x0FFF);
+			//Decode and Execute
+			switch(nibble) {
+				case (0):
+					//Call routine at NNN
+					if (X != 0) {
+					}
+					//Returning from subroutine
+					if (N != 0) {
+					}
+					//Clearing screen
+					display = new boolean[64][32];
+					break;
+				// Jump to address NNN
+				case(1):
+					PC = NNN;
+					break;
+				case(2):
+					break;
+				case(3):
+					break;
+				case(4):
+					break;
+				case(5):
+					break;
+				//Sets VX to NN
+				case(6):
+					V[X] = NN;
+					break;
+				//Adds NN to VX. (Carry flag is not changed).
+				case(7):
+					V[X] += NN;
+					break;
+				case(8):
+					break;
+				case(9):
+					break;
+				//Sets I to NNN
+				case(0xA):
+					I = NNN;
+					break;
+				case(0xB):
+					break;
+				case(0xC):
+					break;
+				//Draws a sprite at the coordinates (VX,VY), with a width of
+				// 8 pixels and a height of N pixels.
+				case(0xD):
+					char xCoord = (char)(V[X] % display.length);
+					char yCoord = (char)(V[Y] % display[0].length);
+					V[0xF] = 0;
+					for (int j = 0; j < N; ++j) {
+						display[xCoord][yCoord] = false;
+						char sprite = mem[I+j];
+					}
+					break;
+				case(0xE):
+					break;
+				case(0xF):
+					break;
+				default:
+					break;
+			}
+		}
 	}
 }
