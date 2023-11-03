@@ -6,6 +6,9 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.utils.ScreenUtils;
+import com.badlogic.gdx.utils.viewport.FitViewport;
+
+import java.util.Random;
 
 public class Chippy extends ApplicationAdapter {
 	// RAM
@@ -36,8 +39,12 @@ public class Chippy extends ApplicationAdapter {
 	private char[] keypad;
 	// Camera
 	private OrthographicCamera camera;
+	// Viewport
+	private FitViewport viewport;
 	// Drawing pixels
-	private ShapeRenderer pixel;
+	private ShapeRenderer shape;
+	// Draw flag
+	private boolean draw;
 
 	@Override
 	public void create () {
@@ -54,13 +61,17 @@ public class Chippy extends ApplicationAdapter {
 		yCoord = 0x0;
 		instruction = 0x0;
 		keypad = new char[16];
+		draw = false;
 
-		camera = new OrthographicCamera(Gdx.graphics.getWidth(),
-				Gdx.graphics.getHeight());
-		camera.setToOrtho(true, Gdx.graphics.getWidth(),
-				Gdx.graphics.getHeight());
+		camera = new OrthographicCamera();
+		viewport = new FitViewport(display.length, display[0].length, camera);
+		viewport.apply();
+		camera.setToOrtho(true, camera.viewportWidth, camera.viewportHeight);
+		camera.position.set(camera.viewportWidth / 2,
+				camera.viewportHeight / 2, 0);
+		camera.update();
 
-		pixel = new ShapeRenderer();
+		shape = new ShapeRenderer();
 
 		//Initialization
 		initialize();
@@ -166,7 +177,7 @@ public class Chippy extends ApplicationAdapter {
 	}
 
 	private void game() {
-		FileHandle fileIn = Gdx.files.internal("IBM Logo.ch8");
+		FileHandle fileIn = Gdx.files.internal("test_opcode.ch8");
 		byte[] temp = new byte[mem.length];
 		fileIn.readBytes(temp, 0x200, (int)fileIn.length());
 		for (int i = 0x200; i < mem.length; ++i) {
@@ -214,29 +225,50 @@ public class Chippy extends ApplicationAdapter {
 		char N = (char) (instruction & 0x000F);
 		char NN = (char) (instruction & 0x00FF);
 		char NNN = (char) (instruction & 0x0FFF);
+		char carry = 0;
 		//Decode and Execute
 		switch (nibble) {
 			case (0):
 				//Call routine at NNN
 				if (X != 0) {
-				}
+					stack[SP--] = PC;
+					PC = NNN;
 				//Returning from subroutine
-				if (N != 0) {
-				}
+				} else if (N != 0) {
+					PC = stack[SP++];
+				} else {
 				//Clearing screen
-				display = new boolean[64][32];
+					display = new boolean[64][32];
+					draw = true;
+				}
 				break;
-			// Jump to address NNN
+			//Jump to address NNN
 			case (1):
 				PC = NNN;
 				break;
+			//Calls routine at NNN
 			case (2):
+				stack[SP] = PC;
+				SP -= 1;
+				PC = NNN;
 				break;
+			//Skip next instruction if VX == NN
 			case (3):
+				if (V[X] == NN) {
+					PC += 2;
+				}
 				break;
+			//Skip next instruction if VX != NN
 			case (4):
+				if (V[X] != NN) {
+					PC += 2;
+				}
 				break;
+			//Skip next instruction if VX == VY
 			case (5):
+				if (V[X] == V[Y]) {
+					PC += 2;
+				}
 				break;
 			//Sets VX to NN
 			case (6):
@@ -245,29 +277,119 @@ public class Chippy extends ApplicationAdapter {
 			//Adds NN to VX. (Carry flag is not changed).
 			case (7):
 				V[X] += NN;
+				V[X] &= 0x00FF;
 				break;
+			//Arithmetic and Logical operations
 			case (8):
+				switch(N) {
+					//Set VX to VY
+					case 0:
+						V[X] = V[Y];
+						break;
+					//Set VX to VX | VY
+					case 1:
+						V[X] |= V[Y];
+						break;
+					//Set VX to VX & VY
+					case 2:
+						V[X] &= V[Y];
+						break;
+					//Set VX to VX ^ VY
+					case 3:
+						V[X] ^= V[Y];
+						break;
+					//Set VX to VX + VY. If addition is larger than 255, set
+					// VF to 1; otherwise, set VF to 0
+					case 4:
+						if ((V[X] + V[Y]) > 0x00FF) {
+							V[0xF] = 1;
+						} else {
+							V[0xF] = 0;
+						}
+						V[X] += V[Y];
+						V[X] &= 0x00FF;
+						break;
+					//Set VX to VX - VY. If the first operand is larger than
+					// the second operand, set VF to 1; otherwise, set VF to 0
+					case 5:
+						if (V[X] > V[Y]) {
+							V[0xF] = 1;
+						} else {
+							V[0xF] = 0;
+						}
+						V[X] -= V[Y];
+						V[X] &= 0x00FF;
+						break;
+					//Set VX to VY. Shift VX 1-bit to the right and set VF if
+					// needed
+					case 6:
+						V[X] = V[Y];
+						carry = (char) (V[X] & 0x0001);
+						V[X] = (char) (V[X] >>> 1);
+						if (carry == 1) {
+							V[0xF] = 1;
+						} else {
+							V[0xF] = 0;
+						}
+						break;
+					//Set VX to VY - VX. If the first operand is larger than
+					// the second operand, set VF to 1; otherwise, set VF to 0
+					case 7:
+						if (V[Y] > V[X]) {
+							V[0xF] = 1;
+						} else {
+							V[0xF] = 0;
+						}
+						V[X] = (char) (V[Y] - V[X]);
+						V[X] = 0x00FF;
+						break;
+					//Set VX to VY. Shift VX 1-bit to the left and set VF if
+					// needed
+					case 0xE:
+						V[X] = V[Y];
+						carry = (char) (V[X] & 0x0080);
+						V[X] = (char) (V[X] << 1);
+						if (carry == 0x0080) {
+							V[0xF] = 1;
+						} else {
+							V[0xF] = 0;
+						}
+						break;
+					default:
+						break;
+				}
 				break;
+			//Skips next instruction if VX != VY.
 			case (9):
+				if (V[X] != V[Y]) {
+					PC += 2;
+				}
 				break;
 			//Sets I to NNN
 			case (0xA):
 				I = NNN;
 				break;
+			//Jumps to address NNN + V0
 			case (0xB):
+				PC = (char) (NNN + V[0]);
 				break;
+			//Sets VX to a random number AND with NN.
 			case (0xC):
+				Random random = new Random();
+				char randomNumber = (char) (random.nextInt(0x0100));
+				V[X] = (char) (randomNumber & NN);
 				break;
 			//Draws a sprite at the coordinates (VX,VY), with a width of
 			// 8 pixels and a height of N pixels.
 			case (0xD):
+				draw = true;
 				yCoord = (char) (V[Y] % display[0].length);
-				for (int j = 0; j < N; ++j) {
+				for (int i = 0; i < N; ++i) {
 					xCoord = (char) (V[X] % display.length);
-					char sprite = mem[I + j];
+					char sprite = mem[I + i];
 					char divisor = 0x80;
-					for (int k = 8; k > 0; --k) {
-						char pixel = (char) ((sprite & divisor) >>> (k - 1));
+					for (int j = 8; j > 0; --j) {
+						char pixel = (char) ((sprite & divisor) >>> (j - 1));
 						divisor /= 2;
 						if (pixel == 1 && display[xCoord][yCoord]) {
 							display[xCoord][yCoord] = false;
@@ -302,23 +424,41 @@ public class Chippy extends ApplicationAdapter {
 		opcodeFetch();
 		opcodeDecodeAndExecute();
 
-		ScreenUtils.clear(0, 0, 0, 1);
+		//ScreenUtils.clear(0, 0, 0, 1);
 
 		camera.update();
+		shape.setProjectionMatrix(camera.combined);
 
-		for (int i = 0; i < display[0].length; ++i) {
-			for (int j = 0; j < display.length; ++j) {
-				if (display[j][i]) {
-					pixel.begin(ShapeRenderer.ShapeType.Point);
-					pixel.setColor(1, 1, 1, 1);
-					pixel.point(i, j,0);
-					pixel.end();
+		if (draw) {
+			draw();
+		}
+	}
+
+	private void draw() {
+		shape.begin(ShapeRenderer.ShapeType.Filled);
+		for (int i = 0; i < display.length; ++i) {
+			for (int j = 0; j < display[0].length; ++j) {
+				if (display[i][j]) {
+					shape.setColor(1, 1, 1, 1);
+					shape.rect(i, j, 1, 1);
 				}
 			}
 		}
+		shape.end();
+		draw = false;
 	}
-	
+
 	@Override
 	public void dispose () {
+		shape.dispose();
+	}
+
+	@Override
+	public void resize(int width, int height) {
+		ScreenUtils.clear(0, 0, 0, 1);
+		viewport.update(width, height);
+		camera.position.set(camera.viewportWidth / 2,
+				camera.viewportHeight / 2, 0);
+		draw();
 	}
 }
