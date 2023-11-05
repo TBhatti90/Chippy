@@ -2,6 +2,7 @@ package com.taaha.chippy;
 
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
@@ -9,6 +10,7 @@ import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 
 import java.util.Random;
+import java.util.Stack;
 
 public class Chippy extends ApplicationAdapter {
 	// RAM
@@ -22,11 +24,9 @@ public class Chippy extends ApplicationAdapter {
 	// Sound Register
 	private char sound;
 	// Stack
-	private char[] stack;
+	private Stack<Character> stack;
 	// Program Counter, stores currently executing address
 	private char PC;
-	// Stack pointer, points to top of stack
-	private char SP;
 	// Display
 	private boolean[][] display;
 	// X-Coordinate for drawing
@@ -35,16 +35,16 @@ public class Chippy extends ApplicationAdapter {
 	private char yCoord;
 	// Instruction
 	private char instruction;
-	// Keypad
-	private char[] keypad;
 	// Camera
 	private OrthographicCamera camera;
 	// Viewport
-	private FitViewport viewport;
+	//private FitViewport viewport;
 	// Drawing pixels
 	private ShapeRenderer shape;
 	// Draw flag
 	private boolean draw;
+	// Invalid opcode flag
+	private boolean invalid;
 
 	@Override
 	public void create () {
@@ -53,19 +53,18 @@ public class Chippy extends ApplicationAdapter {
 		I = 0x0;
 		delay = 0;
 		sound = 0;
-		stack = new char[16];
+		stack = new Stack<>();
 		PC = 0x0;
-		SP = 0;
 		display = new boolean[64][32];
 		xCoord = 0x0;
 		yCoord = 0x0;
 		instruction = 0x0;
-		keypad = new char[16];
 		draw = false;
+		invalid = false;
 
-		camera = new OrthographicCamera();
-		viewport = new FitViewport(display.length, display[0].length, camera);
-		viewport.apply();
+		camera = new OrthographicCamera(display.length, display[0].length);
+		//viewport = new FitViewport(display.length, display[0].length, camera);
+		//viewport.apply();
 		camera.setToOrtho(true, camera.viewportWidth, camera.viewportHeight);
 		camera.position.set(camera.viewportWidth / 2,
 				camera.viewportHeight / 2, 0);
@@ -177,7 +176,8 @@ public class Chippy extends ApplicationAdapter {
 	}
 
 	private void game() {
-		FileHandle fileIn = Gdx.files.internal("test_opcode.ch8");
+		FileHandle fileIn = Gdx.files.internal("Pong [Paul Vervalin, 1990]" +
+				".ch8");
 		byte[] temp = new byte[mem.length];
 		fileIn.readBytes(temp, 0x200, (int)fileIn.length());
 		for (int i = 0x200; i < mem.length; ++i) {
@@ -195,6 +195,82 @@ public class Chippy extends ApplicationAdapter {
 		fileOut.writeBytes(temp, false);
 	}
 
+	private char keypad(char keypad) {
+		char qwerty;
+		switch (keypad) {
+			case 0:
+				qwerty = Input.Keys.X;
+				break;
+			case 1:
+				qwerty = Input.Keys.NUM_1;
+				break;
+			case 2:
+				qwerty = Input.Keys.NUM_2;
+				break;
+			case 3:
+				qwerty = Input.Keys.NUM_3;
+				break;
+			case 4:
+				qwerty = Input.Keys.Q;
+				break;
+			case 5:
+				qwerty = Input.Keys.W;
+				break;
+			case 6:
+				qwerty = Input.Keys.E;
+				break;
+			case 7:
+				qwerty = Input.Keys.A;
+				break;
+			case 8:
+				qwerty = Input.Keys.S;
+				break;
+			case 9:
+				qwerty = Input.Keys.D;
+				break;
+			case 0xA:
+				qwerty = Input.Keys.Z;
+				break;
+			case 0xB:
+				qwerty = Input.Keys.C;
+				break;
+			case 0xC:
+				qwerty = Input.Keys.NUM_4;
+				break;
+			case 0xD:
+				qwerty = Input.Keys.R;
+				break;
+			case 0xE:
+				qwerty = Input.Keys.F;
+				break;
+			case 0xF:
+				qwerty = Input.Keys.V;
+				break;
+			default:
+				qwerty = Input.Keys.P;
+				break;
+		}
+		return qwerty;
+/*
+		keypad[0] = Input.Keys.X;
+		keypad[1] = Input.Keys.NUM_1;
+		keypad[2] = Input.Keys.NUM_2;
+		keypad[3] = Input.Keys.NUM_3;
+		keypad[4] = Input.Keys.Q;
+		keypad[5] = Input.Keys.W;
+		keypad[6] = Input.Keys.E;
+		keypad[7] = Input.Keys.A;
+		keypad[8] = Input.Keys.S;
+		keypad[9] = Input.Keys.D;
+		keypad[0xA] = Input.Keys.Z;
+		keypad[0xB] = Input.Keys.C;
+		keypad[0xC] = Input.Keys.NUM_4;
+		keypad[0xD] = Input.Keys.R;
+		keypad[0xE] = Input.Keys.F;
+		keypad[0xF] = Input.Keys.V;
+*/
+	}
+
 	private void initialize() {
 		//Initialization process
 		//Initialize font into memory
@@ -203,8 +279,9 @@ public class Chippy extends ApplicationAdapter {
 		game();
 		//Setting PC to proper memory location
 		PC = 0x200;
-		//Setting SP to proper stack location
-		SP = 0x0F;
+		//Setting timers
+		delay = 60;
+		sound = 60;
 	}
 
 	private void opcodeFetch() {
@@ -213,7 +290,7 @@ public class Chippy extends ApplicationAdapter {
 		char byte2 = mem[PC + 1];
 		byte1 = (char) (byte1 << 8);
 		instruction = (char) (byte1 | byte2);
-		PC = (char) (PC + 2);
+		PC += 2;
 	}
 
 	private void opcodeDecodeAndExecute() {
@@ -231,13 +308,13 @@ public class Chippy extends ApplicationAdapter {
 			case (0):
 				//Call routine at NNN
 				if (X != 0) {
-					stack[SP--] = PC;
+					stack.push(PC);
 					PC = NNN;
 				//Returning from subroutine
-				} else if (N != 0) {
-					PC = stack[SP++];
-				} else {
+				} else if (N == 0xE) {
+					PC = stack.pop();
 				//Clearing screen
+				} else {
 					display = new boolean[64][32];
 					draw = true;
 				}
@@ -248,8 +325,7 @@ public class Chippy extends ApplicationAdapter {
 				break;
 			//Calls routine at NNN
 			case (2):
-				stack[SP] = PC;
-				SP -= 1;
+				stack.push(PC);
 				PC = NNN;
 				break;
 			//Skip next instruction if VX == NN
@@ -323,7 +399,7 @@ public class Chippy extends ApplicationAdapter {
 					//Set VX to VY. Shift VX 1-bit to the right and set VF if
 					// needed
 					case 6:
-						V[X] = V[Y];
+						//V[X] = V[Y];
 						carry = (char) (V[X] & 0x0001);
 						V[X] = (char) (V[X] >>> 1);
 						if (carry == 1) {
@@ -346,9 +422,10 @@ public class Chippy extends ApplicationAdapter {
 					//Set VX to VY. Shift VX 1-bit to the left and set VF if
 					// needed
 					case 0xE:
-						V[X] = V[Y];
+						//V[X] = V[Y];
 						carry = (char) (V[X] & 0x0080);
 						V[X] = (char) (V[X] << 1);
+						V[X] &= 0x00FF;
 						if (carry == 0x0080) {
 							V[0xF] = 1;
 						} else {
@@ -356,6 +433,7 @@ public class Chippy extends ApplicationAdapter {
 						}
 						break;
 					default:
+						invalid = true;
 						break;
 				}
 				break;
@@ -384,10 +462,12 @@ public class Chippy extends ApplicationAdapter {
 			case (0xD):
 				draw = true;
 				yCoord = (char) (V[Y] % display[0].length);
+				//Height
 				for (int i = 0; i < N; ++i) {
 					xCoord = (char) (V[X] % display.length);
 					char sprite = mem[I + i];
 					char divisor = 0x80;
+					//Width
 					for (int j = 8; j > 0; --j) {
 						char pixel = (char) ((sprite & divisor) >>> (j - 1));
 						divisor /= 2;
@@ -411,27 +491,185 @@ public class Chippy extends ApplicationAdapter {
 				}
 				break;
 			case (0xE):
+				//Skip one instruction if key corresponding to VX is pressed.
+				if (Y == 9) {
+					if (Gdx.input.isKeyPressed(keypad((char)(V[X]>>>4)))) {
+						PC += 2;
+					}
+				//Skip one instruction if key corresponding to VX is NOT
+				// pressed.
+				} else if (Y == 0xA) {
+					if (!Gdx.input.isKeyPressed(keypad((char)(V[X]>>>4)))) {
+						PC += 2;
+					}
+				}
+				else {
+					invalid = true;
+				}
 				break;
 			case (0xF):
+				switch (Y) {
+					case 0:
+						//Sets VX to the value of the delay timer
+						if (N == 7) {
+							V[X] = delay;
+						//Halts operation until a key is pressed. Value
+						// stored in VX.
+						} else if (N == 0xA) {
+							boolean value = false;
+							for (int i = 0; i < 0x10; ++i) {
+								if (Gdx.input.isKeyPressed(keypad((char)i))) {
+									V[X] = (char)i;
+									value = true;
+									break;
+								}
+							}
+							if (!value) {
+								PC -= 2;
+							}
+						}
+						break;
+					case 1:
+						//Sets delay timer to VX
+						if (N == 5) {
+							delay = V[X];
+						//Sets sound timer to VX
+						} else if (N == 8) {
+							sound = V[X];
+						//Sets I to I + VX. Does not trigger VF on COSMIC VIP.
+						//TODO: Implement differences between Chip-8
+						//TODO: interpreters in opcodes.
+						} else if (N == 0xE) {
+							if (I + V[X] > 0x0FFF) {
+								V[0xF] = 1;
+							}
+							I += V[X];
+						}
+						else {
+							invalid = true;
+						}
+						break;
+					//Sets I to the address of the hexadecimal character
+					// represented by the last nibble of VX.
+					case 2:
+						char character = (char) (V[X] >>> 4);
+						switch (character) {
+							case 0:
+								I = 0x50;
+								break;
+							case 1:
+								I = 0x55;
+								break;
+							case 2:
+								I = 0x5A;
+								break;
+							case 3:
+								I = 0x5F;
+								break;
+							case 4:
+								I = 0x64;
+								break;
+							case 5:
+								I = 0x69;
+								break;
+							case 6:
+								I = 0x6E;
+								break;
+							case 7:
+								I = 0x73;
+								break;
+							case 8:
+								I = 0x78;
+								break;
+							case 9:
+								I = 0x7D;
+								break;
+							case 0xA:
+								I = 0x82;
+								break;
+							case 0xB:
+								I = 0x87;
+								break;
+							case 0xC:
+								I = 0x8C;
+								break;
+							case 0xD:
+								I = 0x91;
+								break;
+							case 0xE:
+								I = 0x96;
+								break;
+							case 0xF:
+								I = 0x9B;
+								break;
+							default:
+								invalid = true;
+								break;
+						}
+						break;
+					//Converts the value in VX to BCD and stores it in RAM at
+					// address I, I+1, and I+2.
+					case 3:
+						char[] bcd = new char[3];
+						bcd[0] = (char) (V[X] / 100);
+						bcd[1] = (char) ((V[X] / 10) % 10);
+						bcd[2] = (char) ((V[X] % 100) % 10);
+						mem[I] = bcd[0];
+						mem[I+1] = bcd[1];
+						mem[I+2] = bcd[2];
+						break;
+					//Stores V0-X in RAM given by I. So V0 will be stored at
+					// mem[I], V1 -> mem[I+1], .... ,etc.
+					case 5:
+						for (int i = 0; i <= X; ++i) {
+							mem[I+i] = V[i];
+						}
+						break;
+					//Loads memory values from mem[I+X] in V0-X.
+					case 6:
+						for (int i = 0; i <= X; ++i) {
+							V[i] = mem[I+i];
+						}
+						break;
+					default:
+						invalid = true;
+						break;
+				}
 				break;
 			default:
+				invalid = true;
 				break;
 		}
 	}
 
 	@Override
 	public void render () {
-		opcodeFetch();
-		opcodeDecodeAndExecute();
-
-		//ScreenUtils.clear(0, 0, 0, 1);
-
-		camera.update();
-		shape.setProjectionMatrix(camera.combined);
-
-		if (draw) {
-			draw();
+		//700 Hz TODO: make user adjustable
+		for (int i = 0; i < 700/60; ++i) {
+			opcodeFetch();
+			opcodeDecodeAndExecute();
+			if (invalid) {
+				System.out.println("Invalid opcode. Either ROM is corrupted, " +
+						"or not a valid Chip-8 ROM.");
+				System.exit(1);
+			}
+			if (draw) {
+				break;
+			}
 		}
+
+		//if (draw) {
+			ScreenUtils.clear(0, 0, 0, 1);
+
+			camera.update();
+			shape.setProjectionMatrix(camera.combined);
+
+			draw();
+		//}
+
+		//Decrement Timers, should run at 60 Hz, or 60 FPS
+		delayTimer();
+		soundTimer();
 	}
 
 	private void draw() {
@@ -448,17 +686,33 @@ public class Chippy extends ApplicationAdapter {
 		draw = false;
 	}
 
+	private void delayTimer() {
+		if (delay == 0) {
+			return;
+		}
+		--delay;
+	}
+
+	private void soundTimer() {
+		if (sound == 0) {
+			return;
+		}
+		// TODO: Buzz sound implement
+		--sound;
+	}
+
 	@Override
 	public void dispose () {
 		shape.dispose();
 	}
 
-	@Override
-	public void resize(int width, int height) {
-		ScreenUtils.clear(0, 0, 0, 1);
-		viewport.update(width, height);
-		camera.position.set(camera.viewportWidth / 2,
-				camera.viewportHeight / 2, 0);
-		draw();
-	}
+	//@Override
+	//public void resize(int width, int height) {
+		//ScreenUtils.clear(0, 0, 0, 1);
+		//viewport.update(width, height);
+		//camera.position.set(camera.viewportWidth / 2,
+				//camera.viewportHeight / 2, 0);
+		//draw();
+	//}
+
 }
