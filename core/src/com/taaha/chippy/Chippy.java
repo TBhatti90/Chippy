@@ -3,6 +3,7 @@ package com.taaha.chippy;
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
+import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
@@ -45,6 +46,8 @@ public class Chippy extends ApplicationAdapter {
 	private boolean draw;
 	// Invalid opcode flag
 	private boolean invalid;
+	// Buzzer
+	Sound buzzer;
 
 	@Override
 	public void create () {
@@ -61,6 +64,7 @@ public class Chippy extends ApplicationAdapter {
 		instruction = 0x0;
 		draw = false;
 		invalid = false;
+		buzzer = Gdx.audio.newSound(new FileHandle("sine.wav"));
 
 		camera = new OrthographicCamera(display.length, display[0].length);
 		//viewport = new FitViewport(display.length, display[0].length, camera);
@@ -176,8 +180,7 @@ public class Chippy extends ApplicationAdapter {
 	}
 
 	private void game() {
-		FileHandle fileIn = Gdx.files.internal("Pong [Paul Vervalin, 1990]" +
-				".ch8");
+		FileHandle fileIn = Gdx.files.internal("Pong [Paul Vervalin, 1990].ch8");
 		byte[] temp = new byte[mem.length];
 		fileIn.readBytes(temp, 0x200, (int)fileIn.length());
 		for (int i = 0x200; i < mem.length; ++i) {
@@ -357,6 +360,7 @@ public class Chippy extends ApplicationAdapter {
 				break;
 			//Arithmetic and Logical operations
 			case (8):
+				char temp = 0;
 				switch(N) {
 					//Set VX to VY
 					case 0:
@@ -377,23 +381,24 @@ public class Chippy extends ApplicationAdapter {
 					//Set VX to VX + VY. If addition is larger than 255, set
 					// VF to 1; otherwise, set VF to 0
 					case 4:
-						if ((V[X] + V[Y]) > 0x00FF) {
+						V[X] += V[Y];
+						if (V[X] > 0x00FF) {
 							V[0xF] = 1;
 						} else {
 							V[0xF] = 0;
 						}
-						V[X] += V[Y];
 						V[X] &= 0x00FF;
 						break;
 					//Set VX to VX - VY. If the first operand is larger than
 					// the second operand, set VF to 1; otherwise, set VF to 0
 					case 5:
-						if (V[X] > V[Y]) {
+						temp = V[X];
+						V[X] = (char) (V[X] - V[Y]);
+						if (temp > V[Y]) {
 							V[0xF] = 1;
 						} else {
 							V[0xF] = 0;
 						}
-						V[X] -= V[Y];
 						V[X] &= 0x00FF;
 						break;
 					//Set VX to VY. Shift VX 1-bit to the right and set VF if
@@ -411,13 +416,14 @@ public class Chippy extends ApplicationAdapter {
 					//Set VX to VY - VX. If the first operand is larger than
 					// the second operand, set VF to 1; otherwise, set VF to 0
 					case 7:
-						if (V[Y] > V[X]) {
+						temp = V[X];
+						V[X] = (char) (V[Y] - V[X]);
+						if (V[Y] > temp) {
 							V[0xF] = 1;
 						} else {
 							V[0xF] = 0;
 						}
-						V[X] = (char) (V[Y] - V[X]);
-						V[X] = 0x00FF;
+						V[X] &= 0x00FF;
 						break;
 					//Set VX to VY. Shift VX 1-bit to the left and set VF if
 					// needed
@@ -462,6 +468,7 @@ public class Chippy extends ApplicationAdapter {
 			case (0xD):
 				draw = true;
 				yCoord = (char) (V[Y] % display[0].length);
+				V[0xF] = 0;
 				//Height
 				for (int i = 0; i < N; ++i) {
 					xCoord = (char) (V[X] % display.length);
@@ -474,10 +481,8 @@ public class Chippy extends ApplicationAdapter {
 						if (pixel == 1 && display[xCoord][yCoord]) {
 							display[xCoord][yCoord] = false;
 							V[0xF] = 1;
-						}
-						if (pixel == 1 && !display[xCoord][yCoord]) {
+						} else if (pixel == 1 && !display[xCoord][yCoord]) {
 							display[xCoord][yCoord] = true;
-							V[0xF] = 0;
 						}
 						++xCoord;
 						if (xCoord > display.length - 1) {
@@ -658,14 +663,14 @@ public class Chippy extends ApplicationAdapter {
 			}
 		}
 
-		//if (draw) {
-			ScreenUtils.clear(0, 0, 0, 1);
+		if (draw) {
+			//ScreenUtils.clear(0, 0, 0, 1);
 
 			camera.update();
 			shape.setProjectionMatrix(camera.combined);
 
 			draw();
-		//}
+		}
 
 		//Decrement Timers, should run at 60 Hz, or 60 FPS
 		delayTimer();
@@ -677,7 +682,10 @@ public class Chippy extends ApplicationAdapter {
 		for (int i = 0; i < display.length; ++i) {
 			for (int j = 0; j < display[0].length; ++j) {
 				if (display[i][j]) {
-					shape.setColor(1, 1, 1, 1);
+					shape.setColor(1, 1, 1, 0);
+					shape.rect(i, j, 1, 1);
+				} else if (!display[i][j]) {
+					shape.setColor(0, 0, 0, 0);
 					shape.rect(i, j, 1, 1);
 				}
 			}
@@ -699,20 +707,23 @@ public class Chippy extends ApplicationAdapter {
 		}
 		// TODO: Buzz sound implement
 		--sound;
+		//buzzer.play();
 	}
 
 	@Override
 	public void dispose () {
 		shape.dispose();
+		buzzer.dispose();
 	}
+/*
 
-	//@Override
-	//public void resize(int width, int height) {
-		//ScreenUtils.clear(0, 0, 0, 1);
+	@Override
+	public void resize(int width, int height) {
+		ScreenUtils.clear(0, 0, 0, 1);
 		//viewport.update(width, height);
 		//camera.position.set(camera.viewportWidth / 2,
 				//camera.viewportHeight / 2, 0);
-		//draw();
-	//}
-
+		draw();
+	}
+*/
 }
