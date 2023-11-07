@@ -64,7 +64,7 @@ public class Chippy extends ApplicationAdapter {
 		instruction = 0x0;
 		draw = false;
 		invalid = false;
-		buzzer = Gdx.audio.newSound(new FileHandle("sine.wav"));
+		buzzer = Gdx.audio.newSound(new FileHandle("blip.wav"));
 
 		camera = new OrthographicCamera(display.length, display[0].length);
 		//viewport = new FitViewport(display.length, display[0].length, camera);
@@ -282,9 +282,11 @@ public class Chippy extends ApplicationAdapter {
 		game();
 		//Setting PC to proper memory location
 		PC = 0x200;
+/*
 		//Setting timers
 		delay = 60;
 		sound = 60;
+*/
 	}
 
 	private void opcodeFetch() {
@@ -369,14 +371,17 @@ public class Chippy extends ApplicationAdapter {
 					//Set VX to VX | VY
 					case 1:
 						V[X] |= V[Y];
+						V[0xF] = 0;
 						break;
 					//Set VX to VX & VY
 					case 2:
 						V[X] &= V[Y];
+						V[0xF] = 0;
 						break;
 					//Set VX to VX ^ VY
 					case 3:
 						V[X] ^= V[Y];
+						V[0xF] = 0;
 						break;
 					//Set VX to VX + VY. If addition is larger than 255, set
 					// VF to 1; otherwise, set VF to 0
@@ -404,7 +409,7 @@ public class Chippy extends ApplicationAdapter {
 					//Set VX to VY. Shift VX 1-bit to the right and set VF if
 					// needed
 					case 6:
-						//V[X] = V[Y];
+						V[X] = V[Y];
 						carry = (char) (V[X] & 0x0001);
 						V[X] = (char) (V[X] >>> 1);
 						if (carry == 1) {
@@ -428,7 +433,7 @@ public class Chippy extends ApplicationAdapter {
 					//Set VX to VY. Shift VX 1-bit to the left and set VF if
 					// needed
 					case 0xE:
-						//V[X] = V[Y];
+						V[X] = V[Y];
 						carry = (char) (V[X] & 0x0080);
 						V[X] = (char) (V[X] << 1);
 						V[X] &= 0x00FF;
@@ -498,13 +503,13 @@ public class Chippy extends ApplicationAdapter {
 			case (0xE):
 				//Skip one instruction if key corresponding to VX is pressed.
 				if (Y == 9) {
-					if (Gdx.input.isKeyPressed(keypad((char)(V[X]>>>4)))) {
+					if (Gdx.input.isKeyPressed(keypad((V[X])))) {
 						PC += 2;
 					}
 				//Skip one instruction if key corresponding to VX is NOT
 				// pressed.
 				} else if (Y == 0xA) {
-					if (!Gdx.input.isKeyPressed(keypad((char)(V[X]>>>4)))) {
+					if (!Gdx.input.isKeyPressed(keypad((V[X])))) {
 						PC += 2;
 					}
 				}
@@ -521,7 +526,7 @@ public class Chippy extends ApplicationAdapter {
 						//Halts operation until a key is pressed. Value
 						// stored in VX.
 						} else if (N == 0xA) {
-							boolean value = false;
+/*
 							for (int i = 0; i < 0x10; ++i) {
 								if (Gdx.input.isKeyPressed(keypad((char)i))) {
 									V[X] = (char)i;
@@ -529,7 +534,40 @@ public class Chippy extends ApplicationAdapter {
 									break;
 								}
 							}
-							if (!value) {
+*/
+							if (Gdx.input.isKeyPressed(Input.Keys.NUM_1)) {
+								V[X] = Input.Keys.NUM_1;
+							} else if (Gdx.input.isKeyPressed(Input.Keys.NUM_2)) {
+								V[X] = Input.Keys.NUM_2;
+							} else if (Gdx.input.isKeyPressed(Input.Keys.NUM_3)) {
+								V[X] = Input.Keys.NUM_3;
+							} else if (Gdx.input.isKeyPressed(Input.Keys.NUM_4)) {
+								V[X] = Input.Keys.C;
+							} else if (Gdx.input.isKeyPressed(Input.Keys.Q)) {
+								V[X] = Input.Keys.NUM_4;
+							} else if (Gdx.input.isKeyPressed(Input.Keys.W)) {
+								V[X] = Input.Keys.NUM_5;
+							} else if (Gdx.input.isKeyPressed(Input.Keys.E)) {
+								V[X] = Input.Keys.NUM_6;
+							} else if (Gdx.input.isKeyPressed(Input.Keys.R)) {
+								V[X] = Input.Keys.D;
+							} else if (Gdx.input.isKeyPressed(Input.Keys.A)) {
+								V[X] = Input.Keys.NUM_7;
+							} else if (Gdx.input.isKeyPressed(Input.Keys.S)) {
+								V[X] = Input.Keys.NUM_8;
+							} else if (Gdx.input.isKeyPressed(Input.Keys.D)) {
+								V[X] = Input.Keys.NUM_9;
+							} else if (Gdx.input.isKeyPressed(Input.Keys.F)) {
+								V[X] = Input.Keys.E;
+							} else if (Gdx.input.isKeyPressed(Input.Keys.Z)) {
+								V[X] = Input.Keys.A;
+							} else if (Gdx.input.isKeyPressed(Input.Keys.X)) {
+								V[X] = Input.Keys.NUM_0;
+							} else if (Gdx.input.isKeyPressed(Input.Keys.C)) {
+								V[X] = Input.Keys.B;
+							} else if (Gdx.input.isKeyPressed(Input.Keys.V)) {
+								V[X] = Input.Keys.F;
+							} else {
 								PC -= 2;
 							}
 						}
@@ -627,13 +665,13 @@ public class Chippy extends ApplicationAdapter {
 					// mem[I], V1 -> mem[I+1], .... ,etc.
 					case 5:
 						for (int i = 0; i <= X; ++i) {
-							mem[I+i] = V[i];
+							mem[I++] = V[i];
 						}
 						break;
 					//Loads memory values from mem[I+X] in V0-X.
 					case 6:
 						for (int i = 0; i <= X; ++i) {
-							V[i] = mem[I+i];
+							V[i] = mem[I++];
 						}
 						break;
 					default:
@@ -659,10 +697,17 @@ public class Chippy extends ApplicationAdapter {
 				System.exit(1);
 			}
 			if (draw) {
-				break;
+				//break;
+				//ScreenUtils.clear(0, 0, 0, 1);
+
+				camera.update();
+				shape.setProjectionMatrix(camera.combined);
+
+				draw();
 			}
 		}
 
+/*
 		if (draw) {
 			//ScreenUtils.clear(0, 0, 0, 1);
 
@@ -671,6 +716,7 @@ public class Chippy extends ApplicationAdapter {
 
 			draw();
 		}
+*/
 
 		//Decrement Timers, should run at 60 Hz, or 60 FPS
 		delayTimer();
@@ -703,11 +749,12 @@ public class Chippy extends ApplicationAdapter {
 
 	private void soundTimer() {
 		if (sound == 0) {
+			buzzer.stop();
 			return;
 		}
 		// TODO: Buzz sound implement
 		--sound;
-		//buzzer.play();
+		buzzer.play();
 	}
 
 	@Override
