@@ -2,6 +2,7 @@ package com.taaha.chippy;
 
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Graphics;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.files.FileHandle;
@@ -39,7 +40,7 @@ public class Chippy extends ApplicationAdapter {
 	// Camera
 	private OrthographicCamera camera;
 	// Viewport
-	//private FitViewport viewport;
+	private FitViewport viewport;
 	// Drawing pixels
 	private ShapeRenderer shape;
 	// Draw flag
@@ -66,9 +67,9 @@ public class Chippy extends ApplicationAdapter {
 		invalid = false;
 		buzzer = Gdx.audio.newSound(new FileHandle("blip.wav"));
 
-		camera = new OrthographicCamera(display.length, display[0].length);
-		//viewport = new FitViewport(display.length, display[0].length, camera);
-		//viewport.apply();
+		camera = new OrthographicCamera();
+		viewport = new FitViewport(display.length, display[0].length, camera);
+		viewport.apply();
 		camera.setToOrtho(true, camera.viewportWidth, camera.viewportHeight);
 		camera.position.set(camera.viewportWidth / 2,
 				camera.viewportHeight / 2, 0);
@@ -180,7 +181,8 @@ public class Chippy extends ApplicationAdapter {
 	}
 
 	private void game() {
-		FileHandle fileIn = Gdx.files.internal("Pong [Paul Vervalin, 1990].ch8");
+		FileHandle fileIn = Gdx.files.internal("Pong [Paul Vervalin, 1990]" +
+				".ch8");
 		byte[] temp = new byte[mem.length];
 		fileIn.readBytes(temp, 0x200, (int)fileIn.length());
 		for (int i = 0x200; i < mem.length; ++i) {
@@ -687,8 +689,28 @@ public class Chippy extends ApplicationAdapter {
 
 	@Override
 	public void render () {
+		Graphics.DisplayMode displayMode = Gdx.graphics.getDisplayMode();
+		if ((Gdx.input.isKeyPressed(Input.Keys.ALT_LEFT) ^ Gdx.input.isKeyPressed(Input.Keys.ALT_RIGHT)) && Gdx.input.isKeyJustPressed(Input.Keys.ENTER)) {
+			if (!Gdx.graphics.isFullscreen()) {
+				Gdx.graphics.setFullscreenMode(displayMode);
+			} else {
+				Gdx.graphics.setWindowedMode(64*10, 32*10);
+			}
+		}
+
+		if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
+			System.exit(0);
+		}
+
+		int clockRate = 700;
+		int fps = 60;
+		int instructionsPerFrame = clockRate / fps;
+
+		camera.update();
+		shape.setProjectionMatrix(camera.combined);
+
 		//700 Hz TODO: make user adjustable
-		for (int i = 0; i < 700/60; ++i) {
+		for (int i = 0; i < instructionsPerFrame; ++i) {
 			opcodeFetch();
 			opcodeDecodeAndExecute();
 			if (invalid) {
@@ -699,9 +721,6 @@ public class Chippy extends ApplicationAdapter {
 			if (draw) {
 				//break;
 				//ScreenUtils.clear(0, 0, 0, 1);
-
-				camera.update();
-				shape.setProjectionMatrix(camera.combined);
 
 				draw();
 			}
@@ -762,15 +781,12 @@ public class Chippy extends ApplicationAdapter {
 		shape.dispose();
 		buzzer.dispose();
 	}
-/*
 
 	@Override
 	public void resize(int width, int height) {
-		ScreenUtils.clear(0, 0, 0, 1);
-		//viewport.update(width, height);
-		//camera.position.set(camera.viewportWidth / 2,
-				//camera.viewportHeight / 2, 0);
+		viewport.update(width, height);
+		camera.position.set(camera.viewportWidth / 2,
+				camera.viewportHeight / 2, 0);
 		draw();
 	}
-*/
 }
