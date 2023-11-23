@@ -8,20 +8,24 @@ import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
+import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.kotcrab.vis.ui.VisUI;
 import com.kotcrab.vis.ui.VisUI.SkinScale;
-import com.kotcrab.vis.ui.widget.Menu;
-import com.kotcrab.vis.ui.widget.MenuBar;
-import com.kotcrab.vis.ui.widget.MenuItem;
+import com.kotcrab.vis.ui.util.TableUtils;
+import com.kotcrab.vis.ui.util.dialog.Dialogs;
+import com.kotcrab.vis.ui.widget.*;
 import com.kotcrab.vis.ui.widget.file.FileChooser;
+import com.kotcrab.vis.ui.widget.file.FileTypeFilter;
+import com.kotcrab.vis.ui.widget.file.StreamingFileChooserListener;
 
 import java.util.Random;
 import java.util.Stack;
@@ -82,6 +86,7 @@ public class Chippy extends ApplicationAdapter {
 
 	@Override
 	public void create () {
+		// Core
 		mem = new char[4096];
 		V = new char[16];
 		I = 0x0;
@@ -103,8 +108,6 @@ public class Chippy extends ApplicationAdapter {
 
 		// GUI
 		camera = new OrthographicCamera();
-		//camera.setToOrtho(true, camera.viewportWidth,
-				//camera.viewportHeight);
 		camera.position.set(camera.viewportWidth / 2,
 				camera.viewportHeight / 2, 0);
 
@@ -112,33 +115,59 @@ public class Chippy extends ApplicationAdapter {
 				camera);
 		screenViewport = new ScreenViewport(camera);
 
-		Gdx.input.setInputProcessor(stage);
-		VisUI.load(SkinScale.X2);
+		// Begin layout
+		VisUI.load(SkinScale.X1);
+
 		stage = new Stage(screenViewport);
 		root = new Table();
-		// Begin layout
 		root.setFillParent(true);
 		stage.addActor(root);
-		menuBar = new MenuBar();
-		menuBar.setMenuListener(new MenuBar.MenuBarListener() {
-			@Override
-			public void menuOpened(Menu menu) {
-				System.out.println("Opened menu: " + menu.getTitle());
-			}
-			@Override
-			public void menuClosed(Menu menu) {
-				System.out.println("Closed menu: " + menu.getTitle());
-			}
-		});
-		fileMenu = new Menu("File");
-		helpMenu = new Menu("Help");
-		fileMenu.addItem(new MenuItem("Open"));
-		fileMenu.addItem(new MenuItem("Close"));
-		FileChooser fileChoose = new FileChooser(FileChooser.Mode.OPEN);
 
+		Gdx.input.setInputProcessor(stage);
+
+		menuBar = new MenuBar();
 		root.add(menuBar.getTable()).expandX().fillX().row();
 		root.add().expand().fill();
 
+		fileMenu = new Menu("File");
+		helpMenu = new Menu("Help");
+		fileMenu.addItem(new MenuItem("Open",
+				new ChangeListener() {
+					@Override
+					public void changed(ChangeEvent event, Actor actor) {
+						FileChooser.setDefaultPrefsName("com.taaha.chippy.filechooser");
+						FileChooser.setSaveLastDirectory(true);
+						FileChooser fileChoose = new FileChooser(FileChooser.Mode.OPEN);
+						fileChoose.setSelectionMode(FileChooser.SelectionMode.FILES_AND_DIRECTORIES);
+						fileChoose.setFavoriteFolderButtonVisible(true);
+						FileTypeFilter typeFilter = new FileTypeFilter(true);
+						typeFilter.addRule("Chip-8 ROM (*.ch8)", "ch8");
+
+						TableUtils.setSpacingDefaults(fileChoose);
+
+						fileChoose.setSize(Gdx.graphics.getWidth(),
+								Gdx.graphics.getHeight());
+						fileChoose.setResizable(true);
+						fileChoose.setFileTypeFilter(typeFilter);
+
+						stage.addActor(fileChoose);
+					}
+				}).setShortcut(
+				"Ctrl + O"));
+		fileMenu.addItem(new MenuItem("Close",
+				new ChangeListener() {
+					@Override
+					public void changed(ChangeEvent event, Actor actor) {
+						System.exit(0);
+					}
+				}).setShortcut(
+				"Ctrl + Q"));
+		helpMenu.addItem(new MenuItem("About", new ChangeListener() {
+			@Override
+			public void changed(ChangeEvent event, Actor actor) {
+				Dialogs.showOKDialog(stage, "About", "Chippy Alpha");
+			}
+		}));
 		menuBar.addMenu(fileMenu);
 		menuBar.addMenu(helpMenu);
 
@@ -338,6 +367,25 @@ public class Chippy extends ApplicationAdapter {
 		keypad[0xE] = Input.Keys.F;
 		keypad[0xF] = Input.Keys.V;
 */
+	}
+
+	private void reset() {
+		//Reset values
+		mem = new char[4096];
+		V = new char[16];
+		I = 0x0;
+		delay = 0;
+		sound = 0;
+		stack = new Stack<>();
+		PC = 0x0;
+		display = new boolean[64][32];
+		xCoord = 0x0;
+		yCoord = 0x0;
+		instruction = 0x0;
+		draw = false;
+		invalid = false;
+		gui = true;
+		initial = true;
 	}
 
 	private void initialize() {
@@ -762,6 +810,16 @@ public class Chippy extends ApplicationAdapter {
 
 			stage.act();
 			stage.draw();
+
+			// Watching for user input
+			if ((Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT) ^ Gdx.input.isKeyPressed(Input.Keys.CONTROL_RIGHT)) && Gdx.input.isKeyJustPressed(Input.Keys.O)) {
+				gui = false;
+				ScreenUtils.clear(0, 0, 0, 1);
+				Gdx.graphics.setFullscreenMode(Gdx.graphics.getDisplayMode());
+			}
+			if ((Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT) ^ Gdx.input.isKeyPressed(Input.Keys.CONTROL_RIGHT)) && Gdx.input.isKeyJustPressed(Input.Keys.Q)) {
+				System.exit(0);
+			}
 		} else {
 			if (initial) {
 				//Initialization
@@ -769,23 +827,12 @@ public class Chippy extends ApplicationAdapter {
 				initial = false;
 			}
 
-			Graphics.DisplayMode displayMode = Gdx.graphics.getDisplayMode();
-			if ((Gdx.input.isKeyPressed(Input.Keys.ALT_LEFT) ^ Gdx.input.isKeyPressed(Input.Keys.ALT_RIGHT)) && Gdx.input.isKeyJustPressed(Input.Keys.ENTER)) {
-				if (!Gdx.graphics.isFullscreen()) {
-					Gdx.graphics.setFullscreenMode(displayMode);
-				} else {
-					Gdx.graphics.setWindowedMode(640, 480);
-				}
-			}
-
-			if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
-				System.exit(0);
-			}
-
 			int clockRate = 700;
 			int fps = 60;
 			int instructionsPerFrame = clockRate / fps;
 
+			camera.setToOrtho(true, camera.viewportWidth,
+					camera.viewportHeight);
 			fitViewport.apply();
 			camera.update();
 			shape.setProjectionMatrix(camera.combined);
@@ -823,6 +870,23 @@ public class Chippy extends ApplicationAdapter {
 			//Decrement Timers, should run at 60 Hz, or 60 FPS
 			delayTimer();
 			soundTimer();
+
+			//Watching for user input
+			Graphics.DisplayMode displayMode = Gdx.graphics.getDisplayMode();
+			if ((Gdx.input.isKeyPressed(Input.Keys.ALT_LEFT) ^ Gdx.input.isKeyPressed(Input.Keys.ALT_RIGHT)) && Gdx.input.isKeyJustPressed(Input.Keys.ENTER)) {
+				if (!Gdx.graphics.isFullscreen()) {
+					Gdx.graphics.setFullscreenMode(displayMode);
+				} else {
+					Gdx.graphics.setWindowedMode(800, 600);
+				}
+			}
+
+			if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
+				reset();
+				Gdx.graphics.setWindowedMode(800, 600);
+				camera.setToOrtho(false, camera.viewportWidth,
+						camera.viewportHeight);
+			}
 		}
 	}
 
