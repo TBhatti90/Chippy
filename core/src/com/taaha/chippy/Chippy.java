@@ -10,11 +10,8 @@ import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Stage;
-import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
-import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
-import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
@@ -22,10 +19,12 @@ import com.kotcrab.vis.ui.VisUI;
 import com.kotcrab.vis.ui.VisUI.SkinScale;
 import com.kotcrab.vis.ui.util.TableUtils;
 import com.kotcrab.vis.ui.util.dialog.Dialogs;
-import com.kotcrab.vis.ui.widget.*;
+import com.kotcrab.vis.ui.widget.Menu;
+import com.kotcrab.vis.ui.widget.MenuBar;
+import com.kotcrab.vis.ui.widget.MenuItem;
 import com.kotcrab.vis.ui.widget.file.FileChooser;
 import com.kotcrab.vis.ui.widget.file.FileTypeFilter;
-import com.kotcrab.vis.ui.widget.file.StreamingFileChooserListener;
+import com.kotcrab.vis.ui.widget.file.SingleFileChooserListener;
 
 import java.util.Random;
 import java.util.Stack;
@@ -71,18 +70,12 @@ public class Chippy extends ApplicationAdapter {
 	private boolean gui;
 	// Initialize flag
 	private boolean initial;
-	// GUI skin
-	private Skin skin;
+	// Game file
+	private FileHandle fileIn;
 	// GUI stage
 	private Stage stage;
-	// Textbutton
-	private TextButton textButton;
-	// GUI Table
-	private Table root;
-	// GUI Menu Bar
-	private MenuBar menuBar;
-	private Menu fileMenu;
-	private Menu helpMenu;
+	// GUI File Chooser
+	private FileChooser chooser;
 
 	@Override
 	public void create () {
@@ -102,9 +95,10 @@ public class Chippy extends ApplicationAdapter {
 		invalid = false;
 		gui = true;
 		initial = true;
+		fileIn = null;
 
 		// Sound
-		buzzer = Gdx.audio.newSound(new FileHandle("blip.wav"));
+		buzzer = Gdx.audio.newSound(Gdx.files.internal("blip.wav"));
 
 		// GUI
 		camera = new OrthographicCamera();
@@ -119,38 +113,49 @@ public class Chippy extends ApplicationAdapter {
 		VisUI.load(SkinScale.X1);
 
 		stage = new Stage(screenViewport);
-		root = new Table();
+		// GUI Table
+		Table root = new Table();
 		root.setFillParent(true);
 		stage.addActor(root);
 
 		Gdx.input.setInputProcessor(stage);
 
-		menuBar = new MenuBar();
+		// GUI Menu Bar
+		MenuBar menuBar = new MenuBar();
 		root.add(menuBar.getTable()).expandX().fillX().row();
 		root.add().expand().fill();
 
-		fileMenu = new Menu("File");
-		helpMenu = new Menu("Help");
+		Menu fileMenu = new Menu("File");
+		Menu helpMenu = new Menu("Help");
+
+		FileChooser.setDefaultPrefsName("com.taaha.chippy.filechooser");
+		FileChooser.setSaveLastDirectory(true);
+		chooser = new FileChooser(FileChooser.Mode.OPEN);
 		fileMenu.addItem(new MenuItem("Open",
 				new ChangeListener() {
 					@Override
 					public void changed(ChangeEvent event, Actor actor) {
-						FileChooser.setDefaultPrefsName("com.taaha.chippy.filechooser");
-						FileChooser.setSaveLastDirectory(true);
-						FileChooser fileChoose = new FileChooser(FileChooser.Mode.OPEN);
-						fileChoose.setSelectionMode(FileChooser.SelectionMode.FILES_AND_DIRECTORIES);
-						fileChoose.setFavoriteFolderButtonVisible(true);
+						// GUI File Chooser
+						chooser.setSelectionMode(FileChooser.SelectionMode.FILES_AND_DIRECTORIES);
+						chooser.setFavoriteFolderButtonVisible(true);
 						FileTypeFilter typeFilter = new FileTypeFilter(true);
 						typeFilter.addRule("Chip-8 ROM (*.ch8)", "ch8");
 
-						TableUtils.setSpacingDefaults(fileChoose);
+						TableUtils.setSpacingDefaults(chooser);
 
-						fileChoose.setSize(Gdx.graphics.getWidth(),
-								Gdx.graphics.getHeight());
-						fileChoose.setResizable(true);
-						fileChoose.setFileTypeFilter(typeFilter);
+						chooser.setSize(Gdx.graphics.getWidth()/2.0f,
+								Gdx.graphics.getHeight()/2.0f);
+						chooser.setResizable(true);
+						chooser.setFileTypeFilter(typeFilter);
 
-						stage.addActor(fileChoose);
+						chooser.setListener(new SingleFileChooserListener() {
+							@Override
+							protected void selected(FileHandle file) {
+								fileIn = file;
+							}
+						});
+
+						stage.addActor(chooser);
 					}
 				}).setShortcut(
 				"Ctrl + O"));
@@ -274,8 +279,6 @@ public class Chippy extends ApplicationAdapter {
 	}
 
 	private void game() {
-		FileHandle fileIn = Gdx.files.internal("Pong [Paul Vervalin, 1990]" +
-				".ch8");
 		byte[] temp = new byte[mem.length];
 		fileIn.readBytes(temp, 0x200, (int)fileIn.length());
 		for (int i = 0x200; i < mem.length; ++i) {
@@ -386,6 +389,7 @@ public class Chippy extends ApplicationAdapter {
 		invalid = false;
 		gui = true;
 		initial = true;
+		fileIn = null;
 	}
 
 	private void initialize() {
@@ -811,14 +815,39 @@ public class Chippy extends ApplicationAdapter {
 			stage.act();
 			stage.draw();
 
+
 			// Watching for user input
 			if ((Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT) ^ Gdx.input.isKeyPressed(Input.Keys.CONTROL_RIGHT)) && Gdx.input.isKeyJustPressed(Input.Keys.O)) {
-				gui = false;
-				ScreenUtils.clear(0, 0, 0, 1);
-				Gdx.graphics.setFullscreenMode(Gdx.graphics.getDisplayMode());
+				// GUI File Chooser
+				chooser.setSelectionMode(FileChooser.SelectionMode.FILES_AND_DIRECTORIES);
+				chooser.setFavoriteFolderButtonVisible(true);
+				FileTypeFilter typeFilter = new FileTypeFilter(true);
+				typeFilter.addRule("Chip-8 ROM (*.ch8)", "ch8");
+
+				TableUtils.setSpacingDefaults(chooser);
+
+				chooser.setSize(Gdx.graphics.getWidth()/2.0f,
+						Gdx.graphics.getHeight()/2.0f);
+				chooser.setResizable(true);
+				chooser.setFileTypeFilter(typeFilter);
+
+				chooser.setListener(new SingleFileChooserListener() {
+					@Override
+					protected void selected(FileHandle file) {
+						fileIn = file;
+					}
+				});
+
+				stage.addActor(chooser);
 			}
 			if ((Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT) ^ Gdx.input.isKeyPressed(Input.Keys.CONTROL_RIGHT)) && Gdx.input.isKeyJustPressed(Input.Keys.Q)) {
 				System.exit(0);
+			}
+
+			if (fileIn != null) {
+				gui = false;
+				ScreenUtils.clear(0, 0, 0, 1);
+				Gdx.graphics.setFullscreenMode(Gdx.graphics.getDisplayMode());
 			}
 		} else {
 			if (initial) {
