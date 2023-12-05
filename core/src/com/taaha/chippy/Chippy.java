@@ -76,6 +76,8 @@ public class Chippy extends ApplicationAdapter {
 	private Stage stage;
 	// GUI File Chooser
 	private FileChooser chooser;
+	// GUI File Typefilter
+	private FileTypeFilter typeFilter;
 
 	@Override
 	public void create () {
@@ -131,6 +133,8 @@ public class Chippy extends ApplicationAdapter {
 		FileChooser.setDefaultPrefsName("com.taaha.chippy.filechooser");
 		FileChooser.setSaveLastDirectory(true);
 		chooser = new FileChooser(FileChooser.Mode.OPEN);
+		typeFilter = new FileTypeFilter(false);
+		typeFilter.addRule("Chip-8 ROM (*.ch8)", "ch8");
 		fileMenu.addItem(new MenuItem("Open",
 				new ChangeListener() {
 					@Override
@@ -138,13 +142,11 @@ public class Chippy extends ApplicationAdapter {
 						// GUI File Chooser
 						chooser.setSelectionMode(FileChooser.SelectionMode.FILES_AND_DIRECTORIES);
 						chooser.setFavoriteFolderButtonVisible(true);
-						FileTypeFilter typeFilter = new FileTypeFilter(true);
-						typeFilter.addRule("Chip-8 ROM (*.ch8)", "ch8");
 
 						TableUtils.setSpacingDefaults(chooser);
 
-						chooser.setSize(Gdx.graphics.getWidth()/2.0f,
-								Gdx.graphics.getHeight()/2.0f);
+						chooser.setSize(Gdx.graphics.getWidth()/1.25f,
+								Gdx.graphics.getHeight()/1.25f);
 						chooser.setResizable(true);
 						chooser.setFileTypeFilter(typeFilter);
 
@@ -817,17 +819,16 @@ public class Chippy extends ApplicationAdapter {
 
 
 			// Watching for user input
-			if ((Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT) ^ Gdx.input.isKeyPressed(Input.Keys.CONTROL_RIGHT)) && Gdx.input.isKeyJustPressed(Input.Keys.O)) {
+			if ((Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT) ^ Gdx
+			.input.isKeyPressed(Input.Keys.CONTROL_RIGHT)) && Gdx.input.isKeyJustPressed(Input.Keys.O)) {
 				// GUI File Chooser
 				chooser.setSelectionMode(FileChooser.SelectionMode.FILES_AND_DIRECTORIES);
 				chooser.setFavoriteFolderButtonVisible(true);
-				FileTypeFilter typeFilter = new FileTypeFilter(true);
-				typeFilter.addRule("Chip-8 ROM (*.ch8)", "ch8");
 
 				TableUtils.setSpacingDefaults(chooser);
 
-				chooser.setSize(Gdx.graphics.getWidth()/2.0f,
-						Gdx.graphics.getHeight()/2.0f);
+				chooser.setSize(Gdx.graphics.getWidth()/1.25f,
+						Gdx.graphics.getHeight()/1.25f);
 				chooser.setResizable(true);
 				chooser.setFileTypeFilter(typeFilter);
 
